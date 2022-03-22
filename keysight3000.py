@@ -4,7 +4,7 @@
 ####################################
 
 import pyvisa as visa
-from time import sleep
+from time import sleep, time
 from configobj import ConfigObj
 import numpy as np
 
@@ -145,6 +145,8 @@ class Keysight:
             sleep(0.2)
             seg_count = int(self.query("waveform:SEGMented:COUNt?"))          
 
+
+        t0 = time()
         res = self.read_premable()
         print(f"Collected {self.segment_count} waveforms. Transfer to PC..", flush=True)
 
@@ -154,10 +156,12 @@ class Keysight:
             print(f"\n\nVisaError: {err}\n  When trying to obtain the waveform (full traceback below).")
             pass
         
+        t1 = time()
+
         y_axis = (raw - res['y_reference'])*res['y_increment'] + res['y_origin']
         y_axis = np.split(y_axis, self.segment_count)
 
-        print(f"Transferred  {self.segment_count} waveforms.")
+        print(f"Transferred  {self.segment_count} waveforms in {t1-t0:.2f} seconds.")
 
         self.write("run")
         return res['x_axis'], y_axis
