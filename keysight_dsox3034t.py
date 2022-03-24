@@ -167,7 +167,7 @@ class KeysightDSOX3034T:
 
 
 if __name__ == '__main__':
-    config = ConfigObj('config.ini')['ScopeConfig']
+    config = ConfigObj('config.ini')['KeysightDSOX3034T']
     scope = KeysightDSOX3034T(config)
     scope.configure()
     
