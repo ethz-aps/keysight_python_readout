@@ -9,7 +9,7 @@ from configobj import ConfigObj
 import numpy as np
 
 
-class Keysight:
+class KeysightDSOX3034T:
     """ Readout class for the Keysight DSOX3034T Oscilloscope.
         The maximum storage is 2.5M points in WORD data format.
         If segment_count = 1000, each wf is 2500 pts long.
@@ -24,8 +24,6 @@ class Keysight:
         sleep(2)
         print("Connected to: ", self.query("*idn?").rstrip())
 
-        self.segment_count = self.conf.as_int('segment_count')
-
 
     def write(self, command):
         self._inst.write(command)
@@ -34,7 +32,6 @@ class Keysight:
             print(f"Errors while writing {command} to instrument")
             for e in err:
                 print(e)
-
 
     def query(self, command):
         try:
@@ -53,7 +50,6 @@ class Keysight:
                 print("")
             raise
         
-
     def get_full_error_queue(self, verbose=False):
         """All the latest errors from the oscilloscope, upto 30 errors
         (and store to the attribute ``errors``)"""
@@ -132,13 +128,14 @@ class Keysight:
         #sleep(1)
 
         self.write("acquire:mode segmented") #rtime
-        self.write(f"acquire:segmented:count {self.segment_count}")
+        self.write(f"acquire:segmented:count {self.conf.as_int('segment_count')}")
         self.write("waveform:segmented:all on") #return all segments at once
 
 
   
 
     def read_data(self, channel=1):
+        segment_count = self.conf.as_int('segment_count')
         print('Acquiring Triggers..', flush=True)
         seg_count = int(self.query("waveform:SEGMented:COUNt?"))
         while seg_count != self.segment_count:
@@ -148,7 +145,7 @@ class Keysight:
 
         t0 = time()
         res = self.read_premable()
-        print(f"Collected {self.segment_count} waveforms. Transfer to PC..", flush=True)
+        print(f"Collected {segment_count} waveforms. Transfer to PC..", flush=True)
 
         try:
             raw = self._inst.query_binary_values(":WAVeform:DATA?", datatype=res['format_descriptor'], container=np.array)
@@ -159,9 +156,9 @@ class Keysight:
         t1 = time()
 
         y_axis = (raw - res['y_reference'])*res['y_increment'] + res['y_origin']
-        y_axis = np.split(y_axis, self.segment_count)
+        y_axis = np.split(y_axis, segment_count)
 
-        print(f"Transferred  {self.segment_count} waveforms in {t1-t0:.2f} seconds.")
+        print(f"Transferred  {segment_count} waveforms in {t1-t0:.2f} seconds.")
 
         self.write("run")
         return res['x_axis'], y_axis
@@ -171,7 +168,7 @@ class Keysight:
 
 if __name__ == '__main__':
     config = ConfigObj('config.ini')['ScopeConfig']
-    scope = Keysight(config)
+    scope = KeysightDSOX3034T(config)
     scope.configure()
     
     xax, yax = scope.read_data()
@@ -179,7 +176,7 @@ if __name__ == '__main__':
     print('len xax: ', len(xax))
     print('nr of wfs: ',len(yax))
 
-    for i in range(scope.segment_count):
+    for i in range(len(yax)):
         plt.plot(xax, yax[i], lw=0.1, label=f"{i}")
     plt.legend()   
     plt.show()

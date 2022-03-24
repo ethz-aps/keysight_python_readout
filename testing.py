@@ -1,4 +1,4 @@
-from keysight3000 import Keysight
+from keysight_dsox3034t import KeysightDSOX3034T
 from configobj import ConfigObj
 
 import matplotlib
@@ -8,7 +8,7 @@ plt.ion()
 
 
 config = ConfigObj('config.ini')['ScopeConfig']
-scope = Keysight(config)
+scope = KeysightDSOX3034T(config)
 scope.configure()
 
 
