@@ -7,6 +7,7 @@ import pyvisa as visa
 from time import sleep, time
 from configobj import ConfigObj
 import numpy as np
+from matplotlib import pyplot as plt
 
 
 class KeysightDSOX3034T:
@@ -20,8 +21,9 @@ class KeysightDSOX3034T:
         self.conf = conf
         rm = visa.ResourceManager('@py')
         self._inst = rm.open_resource(self.conf['address'], timeout=self.conf.as_int('timeout_ms'))
+        self.timeout = self.conf['timeout_ms']
         self.write("*rst")
-        sleep(2)
+        sleep(3)
         print("Connected to: ", self.query("*idn?").rstrip())
 
 
@@ -35,6 +37,7 @@ class KeysightDSOX3034T:
 
     def query(self, command):
         try:
+            print(command)
             return self._inst.query(command).strip()
         except visa.Error as err:
             msg = f"query '{command}'"
@@ -78,6 +81,7 @@ class KeysightDSOX3034T:
 
     def read_premable(self):
         pre = self.query("WAVeform:PREamble?").split(',')
+        print(pre)
         formatting = {'+0':'BYTE', '+1':'WORD', '+4':'ASCII'}
         format_descriptor = {'+0':'b', '+1':'h', '+4':'standard'}
         acq_type = {'+0':'NORMAL', '+2':'AVERAGE', '+3':'HRESOLUTION'}
@@ -117,6 +121,8 @@ class KeysightDSOX3034T:
         
         self.write(f"timebase:scale {self.conf['tax_scale']}")
 
+        self.write('waveform:unsigned 0')
+        self.write('WAVeform:BYTeorder LSBFirst')
         self.write("waveform:points max")
         self.write("waveform:format word")
         self.write("waveform:points:mode raw")
@@ -138,25 +144,29 @@ class KeysightDSOX3034T:
         segment_count = self.conf.as_int('segment_count')
         print('Acquiring Triggers..', flush=True)
         seg_count = int(self.query("waveform:SEGMented:COUNt?"))
-        while seg_count != self.segment_count:
+        while seg_count != segment_count:
             sleep(0.2)
             seg_count = int(self.query("waveform:SEGMented:COUNt?"))          
 
 
         t0 = time()
         res = self.read_premable()
+        print(res)
         print(f"Collected {segment_count} waveforms. Transfer to PC..", flush=True)
 
         try:
-            raw = self._inst.query_binary_values(":WAVeform:DATA?", datatype=res['format_descriptor'], container=np.array)
+            raw = self._inst.query_binary_values(":WAVeform:DATA?", datatype=res['format_descriptor'], container=np.array, is_big_endian=False)
         except visa.Error as err:
             print(f"\n\nVisaError: {err}\n  When trying to obtain the waveform (full traceback below).")
             pass
         
         t1 = time()
 
+        print(raw)
+        #tax = x_origin + i*x_increment for in in wf basically
         y_axis = (raw - res['y_reference'])*res['y_increment'] + res['y_origin']
         y_axis = np.split(y_axis, segment_count)
+        print(y_axis[0])
 
         print(f"Transferred  {segment_count} waveforms in {t1-t0:.2f} seconds.")
 
